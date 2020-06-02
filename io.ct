@@ -1,0 +1,27 @@
+lib io
+
+opaque FILE* file
+
+void print(string s)	{{
+	fprintf(stdout, "%s\n", s);
+}}
+
+file open(string path, mode) {{
+	return fopen(path, mode);
+}}
+
+void close(file f) {{
+	fclose(f);
+}}
+
+string slurp(string path) {{
+	FILE *fd = fopen(path, "r");
+	ensuref(fd, "fopen %d %s: %s", errno, strerror(errno), path);
+	fseek(fd, 0, SEEK_END);
+	int len = ftell(fd);
+	fseek(fd, 0, SEEK_SET);
+	char *data = allot(len+1);
+	ensuref(len == fread(data, 1, len, fd), "fread %d %s: %s", errno, strerror(errno), path);
+	fclose(fd);
+	return data;
+}}

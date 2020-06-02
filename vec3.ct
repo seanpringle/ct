@@ -1,0 +1,13 @@
+lib vec3
+
+struct xyz {
+	double x
+	double y
+	double z
+}
+
+void add(xyz v, double x, y, z) {
+	v.x = v.x + x
+	v.y = v.y + y
+	v.z = v.z + z
+}

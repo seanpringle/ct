@@ -1,0 +1,11 @@
+lib vec2
+
+struct xy {
+	double x
+	double y
+}
+
+void add(xy v, double x, y) {
+	v.x = v.x + x
+	v.y = v.y + y
+}

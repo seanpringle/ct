@@ -1,0 +1,47 @@
+lib gui
+
+#include <SDL2/SDL.h>
+
+opaque SDL_Window* window
+
+void start() {{
+	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
+		fprintf(stderr, "SDL error: %s\n", SDL_GetError());
+	}
+}}
+
+void stop() {{
+	SDL_Quit();
+}}
+
+window createWindow(string title, int width, int height) {{
+	return SDL_CreateWindow(
+		"te",
+		SDL_WINDOWPOS_UNDEFINED,
+		SDL_WINDOWPOS_UNDEFINED,
+		width,
+		height,
+		SDL_WINDOW_OPENGL|SDL_WINDOW_ALLOW_HIGHDPI|SDL_WINDOW_SHOWN|SDL_WINDOW_RESIZABLE
+	);
+}}
+
+void destroyWindow(window win) {{
+	SDL_DestroyWindow(win);
+}}
+
+bool tick() {{
+	SDL_Event e;
+	SDL_PollEvent(&e);
+
+	switch (e.type) {
+		case SDL_QUIT: {
+			return false;
+		}
+		default: {
+		}
+	}
+
+	return true;
+}}
+
+

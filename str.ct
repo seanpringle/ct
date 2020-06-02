@@ -1,0 +1,18 @@
+lib str
+
+string format(string pattern, ...)	{{
+	va_list args;
+	va_start(args, pattern);
+	int len = vsnprintf(NULL, 0, pattern, args);
+	ensuref(len >= 0, "vsnprintf %d %s: %s", errno, strerror(errno), pattern);
+	va_end(args);
+	char *data = allot(len+1);
+	va_start(args, pattern);
+	ensuref(len == vsnprintf(data, len+1, pattern, args), "vsnprintf %d %s: %s", errno, strerror(errno), pattern);
+	va_end(args);
+	return data;
+}}
+
+bool equal(string a, b) {{
+	return strcmp(a,b) == 0;
+}}

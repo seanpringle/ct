@@ -1,0 +1,57 @@
+lib rt
+
+{{
+/* runtime start */
+
+int main() {
+	return main_main();
+}
+
+_Thread_local struct {
+	int count;
+	void* *array;
+} rt_allotments;
+
+_Thread_local struct {
+	int count;
+	int *array;
+} rt_marks;
+
+void* allot(size_t bytes) {
+	void *buf = calloc(bytes, sizeof(uint8_t));
+	rt_allotments.array = realloc(rt_allotments.array, ((rt_allotments.count+1)*sizeof(void*)));
+	rt_allotments.array[rt_allotments.count++] = buf;
+	return buf;
+}
+
+void mark() {
+	rt_marks.array = realloc(rt_marks.array, ((rt_marks.count+1)*sizeof(int)));
+	rt_marks.array[rt_marks.count++] = rt_allotments.count;
+}
+
+void forget() {
+	if (rt_marks.count > 0) {
+		int until = rt_marks.array[--rt_marks.count];
+		while (rt_allotments.count > until) {
+			free(rt_allotments.array[--rt_allotments.count]);
+		}
+	} else {
+		while (rt_allotments.count > 0) {
+			free(rt_allotments.array[--rt_allotments.count]);
+		}
+		free(rt_allotments.array);
+		memset(&rt_allotments, 0, sizeof(rt_allotments));
+	}
+}
+
+/* runtime end */
+}}
+
+void mark() {{
+	mark();
+}}
+
+void forget() {{
+	forget();
+}}
+

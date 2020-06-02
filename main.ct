@@ -1,0 +1,16 @@
+lib main
+use rt
+use io
+use str
+use gui
+
+int main() {
+	gui:window win = gui:createWindow("test", 1000, 1000)
+
+	while (gui:tick()) {
+		rt:forget()
+	}
+
+	gui:destroyWindow(win)
+	return 0
+}
