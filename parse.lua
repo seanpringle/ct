@@ -244,6 +244,9 @@ local functions = {
 
 local function peekOperator()
 	for op,f in pairs(operator) do
+		if op == "/" and peek("//") then
+			return false
+		end
 		if peek(op) then
 			return true
 		end
@@ -277,7 +280,7 @@ local greedy = function()
 		local op = wordOperator()
 		if op == "is" then
 			local etype = wordType(library)
-			out("._concrete_type == type_${etype}" % { etype = etype })
+			out("._type == type_${etype}" % { etype = etype })
 		else
 			out(operator[op])
 			expr(0)
@@ -335,7 +338,7 @@ expr = function(level)
 		local etype, ename = wordType(library)
 		local dst = wordName()
 		scope.declare[#scope.declare+1] = "${ctype} ${dst};\n" % { ctype = types[etype].itype, dst = dst }
-		out("(${src}._concrete_type == type_${etype} && ({ ${dst} = recast_${etype}((struct interface*)&${src}); true; }))"
+		out("(${src}._type == type_${etype} && ({ ${dst} = recast_${etype}((struct interface*)&${src}); true; }))"
 			% { src = src, dst = dst, ename = ename, etype = etype, itype = types[etype].itype })
 		return
 	end
@@ -404,32 +407,56 @@ expr = function(level)
 	end
 
 	local etype, ename = wordType(library)
+	--print(etype, ename)
 
-	if peek(".") then
+	if peek(".") or peek("[") then
+
+		for k,v in pairs(scope.vars) do
+			print(k)
+		end
+		print(ename)
+		local vtype = scope.vars[ename].type
 
 		local path = "${name}" % { name = ename }
 		local i = 0
-		while peek(".") do
-			char()
-			local field = wordName()
-			local sep = i%2==0 and "." or "->"
-			if peek("[") then
-				char()
+		while peek(".") or peek("[") do
+			local c = char()
+			local field = ""
+			if c == "." then
+				local name = wordName()
+				field = ".${name}[0]" % { name = name }
+				for i,f in ipairs(types[vtype].fields) do
+					if f.name == name then
+						vtype = f.ftype
+						if f.array then
+							field = ".${name}" % { name = name }
+						end
+					end
+				end
+			else
 				local index = wordIndex()
 				assert(char() == "]")
-				--field = "${field}+${index}" % { field = field, index = index }
-				field = "${field}+bounds(${path}${sep}_${field}_len, ${index})"
-					% { path = path, sep = sep, field = field, index = index }
+				field = "[${index}]" % { index = index }
+				--field = "${field}+bounds(${path}${sep}_${field}_len, ${index})"
+				--	% { path = path, sep = sep, field = field, index = index }
 			end
-			path = path .. "${sep}${field}" % { sep = sep, field = field }
+			path = path .. field
 			i = i+1
 		end
-		out("*(${path})" % { path = path })
+		out(path)
 
 		if peek("=") and not peek("==") then
 			char()
-			out(" = ")
-			expr(0)
+			if peek("{") then
+				local cname = "_l${n}" % { n = #scope.declare+1 }
+				scope.declare[#scope.declare+1] = "${type} ${cname};\n" % { type = types[vtype].ctype, cname = cname }
+				out(" = ({ ${itype} _i = local_${etype}(&${cname}); " % { itype = types[vtype].itype, etype = vtype, cname = cname })
+				expr(0)
+				out("_i; })")
+			else
+				out(" = ")
+				expr(0)
+			end
 		else
 			greedy()
 		end
@@ -468,7 +495,7 @@ expr = function(level)
 				end
 			end
 		end
-		assert(char() == ")")
+		assert(char() == ")", source)
 		out(")")
 		greedy()
 		return
@@ -483,6 +510,15 @@ expr = function(level)
 
 			out("${name}" % { name = ename })
 
+			local array = peek("[")
+			local arraySize = 0
+
+			if array then
+				char()
+				arraySize = wordIndex()
+				assert(char() == "]")
+			end
+
 			local assign = peek("=") and not peek("==")
 
 			if assign then
@@ -493,9 +529,11 @@ expr = function(level)
 
 			scope.vars[ename] = {
 				type = etype,
+				array = array,
+				size = arraySize,
 			}
 
-			if location == "local" and interface then
+			if not array and location == "local" and interface then
 				local cname = "_l${n}" % { n = #scope.declare+1 }
 				scope.vars[ename].lname = cname
 				scope.declare[#scope.declare+1] = "${type} ${cname};\n" % { type = types[etype].ctype, cname = cname }
@@ -507,7 +545,7 @@ expr = function(level)
 				out("_i; })")
 			end
 
-			if location ~= "local" and interface then
+			if not array and location ~= "local" and interface then
 				out(" = ({ ${itype} _i = ${location}_${name}(); " % { location = location, itype = types[etype].itype, name = etype })
 				if assign then
 					expr(0)
@@ -515,12 +553,16 @@ expr = function(level)
 				out("_i; })")
 			end
 
-			if not interface then
+			if not array and not interface then
 --				assert(location == "local")
 				if assign then
 					out(" = ")
 					expr(0)
 				end
+			end
+
+			if array then
+				out("[${size}]" % scope.vars[ename])
 			end
 
 			if not peek(",") then
@@ -694,7 +736,7 @@ stmt = function(level)
 	out(";\n")
 end
 
-block = function(level)
+block = function(level, args)
 	comments()
 
 	skip()
@@ -707,7 +749,7 @@ block = function(level)
 		local outer = blocks[#blocks]
 		local inner = {
 			declare = {},
-			vars = {},
+			vars = args or {},
 		}
 
 		blocks[#blocks+1] = inner
@@ -803,6 +845,7 @@ local function define()
 				end
 				fields[#fields+1] = {
 					type = types[fieldType].itype,
+					ftype = fieldType,
 					name = fieldName,
 					array = arraySize,
 				}
@@ -827,8 +870,9 @@ local function define()
 
 			headers.structdecs[#headers.structdecs+1] = "struct interface_${name};\n" % { name = struct }
 			out("struct interface_${name} {\n" % { name = struct })
-			out("\tint _concrete_type;\n")
-			out("\tvoid *_concrete_ptr;\n" % { name = struct })
+			out("\tuint16_t _type;\n")
+			out("\tuint16_t _flags;\n")
+			out("\tvoid *_addr;\n" % { name = struct })
 			for i,f in ipairs(fields) do
 				if f.array ~= nil then
 					out("\tint _${name}_len;\n" % f)
@@ -843,8 +887,9 @@ local function define()
 			out("\tstruct concrete_${name} *c = (l);\\\n" % { name = struct })
 			out("\tmemset(c, 0, sizeof(struct concrete_${name}));\\\n" % { name = struct })
 			out("\t(struct interface_${name}){\\\n" % { name = struct })
-			out("\t\t._concrete_type = ${id},\\\n" % { id = id })
-			out("\t\t._concrete_ptr = c,\\\n" % { id = id })
+			out("\t\t._type = ${id},\\\n" % { id = id })
+			out("\t\t._flags = FLAG_LOCAL,\\\n" % { id = id })
+			out("\t\t._addr = c,\\\n" % { id = id })
 			for i,f in ipairs(fields) do
 				if f.array ~= nil then
 					out("\t\t._${name}_len = sizeof(c->${name})/sizeof(c->${name}[0]),\\\n" % f)
@@ -860,9 +905,10 @@ local function define()
 				out("\tstruct concrete_${name} *c = allot(sizeof(struct concrete_${name}));\n" % { name = struct })
 			end
 			out("\treturn (struct interface_${name}){\n" % { name = struct })
-			out("\t\t._concrete_type = ${id},\n" % { id = id })
+			out("\t\t._type = ${id},\n" % { id = id })
+			out("\t\t._flags = FLAG_TEMP,\n" % { id = id })
 			if #fields > 0 then
-				out("\t\t._concrete_ptr = c,\n" % { id = id })
+				out("\t\t._addr = c,\n" % { id = id })
 			end
 			for i,f in ipairs(fields) do
 				if f.array ~= nil then
@@ -880,9 +926,10 @@ local function define()
 				out("\tstruct concrete_${name} *c = calloc(1, sizeof(struct concrete_${name}));\n" % { name = struct })
 			end
 			out("\treturn (struct interface_${name}){\n" % { name = struct })
-			out("\t\t._concrete_type = ${id},\n" % { id = id })
+			out("\t\t._type = ${id},\n" % { id = id })
+			out("\t\t._flags = FLAG_POOL,\n" % { id = id })
 			if #fields > 0 then
-				out("\t\t._concrete_ptr = c,\n" % { id = id })
+				out("\t\t._addr = c,\n" % { id = id })
 			end
 			for i,f in ipairs(fields) do
 				if f.array ~= nil then
@@ -897,8 +944,9 @@ local function define()
 
 			out("#define cast_${name}(s) ({ __typeof__ (s) _s = (s);\\\n" % { name = struct })
 			out("\t(struct interface_${name}){\\\n" % { name = struct })
-			out("\t\t._concrete_type = _s._concrete_type,\\\n")
-			out("\t\t._concrete_ptr = _s._concrete_ptr,\\\n")
+			out("\t\t._type = _s._type,\\\n")
+			out("\t\t._flag = _s._flag,\\\n")
+			out("\t\t._addr = _s._addr,\\\n")
 			for i,f in ipairs(fields) do
 				out("\t\t.${name} = _s.${name},\\\n" % f)
 			end
@@ -987,7 +1035,15 @@ local function define()
 		end
 		out(") ")
 		assert(peek("{"), "expected function block")
-		block(0)
+
+		local vars = {}
+		for i,a in ipairs(args) do
+			vars[a.name] = {
+				type = a.atype,
+			}
+		end
+
+		block(0, vars)
 		out("\n")
 		return
 	end
@@ -1019,8 +1075,21 @@ void oob(int i) {
 #define bounds(l,i) ({ int _l = (l); int _i = (i); if (_i < 0 || _i >= _l) oob(_i); _i; })
 
 struct interface {
-	int _concrete_type;
-	void *_concrete_ptr;
+	uint16_t _type;
+	uint16_t _flags;
+	void *_addr;
+};
+
+enum {
+	_FLAG_LOCAL = 0,
+	_FLAG_TEMP,
+	_FLAG_POOL,
+};
+
+enum flag {
+	FLAG_LOCAL = 1<<_FLAG_LOCAL,
+	FLAG_TEMP = 1<<_FLAG_TEMP,
+	FLAG_POOL = 1<<_FLAG_POOL,
 };
 
 ]])
@@ -1082,13 +1151,19 @@ for sname,sub in pairs(types) do
 			id = sub.id,
 		}
 		out("${itype} recast_${sname}(struct interface *ii) {\n" % fmt)
-		out("\tassert(ii->_concrete_type == type_${sname});\n" % fmt)
+		out("\tassert(ii->_type == type_${sname});\n" % fmt)
 		if #sub.fields > 0 then
-			out("\t${ctype} *ic = ii->_concrete_ptr;\n" % fmt)
+			out("\t${ctype} *ic = ii->_addr;\n" % fmt)
 		end
 		out("\treturn (${itype}){\n" % fmt)
+		out("\t\t._type = ii->_type,\n" % field)
+		out("\t\t._flags = FLAG_LOCAL,\n" % field)
 		for i,field in ipairs(sub.fields) do
-			out("\t\t.${name} = &ic->${name},\n" % field)
+			if field.array then
+				out("\t\t.${name} = ic->${name},\n" % field)
+			else
+				out("\t\t.${name} = &ic->${name},\n" % field)
+			end
 		end
 		out("\t};\n")
 		out("}\n\n")

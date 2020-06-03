@@ -4,13 +4,34 @@ use io
 use str
 use gui
 
-int main() {
-	gui:window win = gui:createWindow("test", 1000, 1000)
+struct inner {
+	int n[3]
+}
 
-	while (gui:tick()) {
+struct test {
+	inner i
+}
+
+int main() {
+	test t = { }
+	t.i = {}
+
+	t.i.n[0] = 3
+
+	gui:window windows[3]
+
+	windows[0] = gui:createWindow("test", 1000, 1000)
+	//windows[1] = gui:createWindow("test", 1000, 1000)
+	//windows[2] = gui:createWindow("test", 1000, 1000)
+
+	while gui:tick() {
 		rt:forget()
 	}
 
-	gui:destroyWindow(win)
+	io:print(str:format("%d", t.i.n[0]))
+
+	gui:destroyWindow(windows[0])
+	//gui:destroyWindow(windows[1])
+	//gui:destroyWindow(windows[2])
 	return 0
 }

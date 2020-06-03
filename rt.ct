@@ -55,3 +55,9 @@ void forget() {{
 	forget();
 }}
 
+struct any {}
+
+void free(any a) {{
+	assert(a._flags & FLAG_POOL);
+	free(a._addr);
+}}
