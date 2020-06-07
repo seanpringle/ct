@@ -67,22 +67,22 @@ local structMT = {
 
 	__index = {
 		field = function(st, type, name, cells)
-			local sym = st.lib:symbolref(type)
-			local field = setmetatable({
-				sym = sym,
-				name = name,
-				cells = cells,
-			}, fieldMT)
-			st.fields[name] = field
-			st.order[#st.order+1] = name
+			local field = setmetatable({ cells = cells }, fieldMT)
 			if type == "embed" then
-				field.embed = true
 				field.esym = st.lib:symbolref(name)
+				field.embed = true
+				field.sym = field.esym
+				field.name = field.esym.name
+			else
+				field.sym = st.lib:symbolref(type)
+				field.name = name
 			end
+			st.fields[field.name] = field
+			st.order[#st.order+1] = field.name
 		end,
 
 		embed = function(st)
-			assert(not st.embedding)
+			assert(not st.embedding, "embedded struct loop "..tostring(st))
 			st.embedding = true
 			local rfields = {}
 			local efields = {}
@@ -90,7 +90,7 @@ local structMT = {
 				if f.embed then
 					assert(type(f.esym.lib) == "table")
 					assert(type(f.esym.lib.structs) == "table")
-					assert(type(f.esym.lib.structs[f.name]) == "table")
+					assert(type(f.esym.lib.structs[f.name]) == "table", f.name)
 					local sst = f.esym.lib.structs[f.name]
 					for sn,sf in pairs(sst.fields) do
 						--print("embed", n, sn)
@@ -146,7 +146,7 @@ local structMT = {
 		end,
 
 		declare2Interface = function(st)
-			local fields = ""
+			local fields = "\tvoid* _concrete;\n"
 			for i,n in ipairs(st.order) do
 				local f = st.fields[n]
 				fields = fields .. "\t${type} *${name};\n" % { type = f.sym, name = f.name }
@@ -396,38 +396,41 @@ local stmtMT = {
 
 			if sm.keyword then
 				if #oexpr > 0 and #iexpr > 0 then
-					return "${keyword} (${iexpr}) {\n\t${oexpr};\n\t}" % {
+					return "${keyword} (${iexpr}) {\n\t${oexpr}\t}\n" % {
 						keyword = sm.keyword,
-						oexpr = table.concat(oexpr),
+						oexpr = table.concat(oexpr, "\t"),
 						iexpr = table.concat(iexpr),
 					}
 				end
 				if #oexpr > 0 then
-					return "${keyword} {\n\t${oexpr};\n\t}" % {
+					return "${keyword} {\n\t${oexpr}\t}\n" % {
 						keyword = sm.keyword,
-						oexpr = table.concat(oexpr),
+						oexpr = table.concat(oexpr, "\t"),
 					}
 				end
-				return "${keyword} ${iexpr}" % {
-					keyword = sm.keyword,
-					iexpr = table.concat(iexpr),
-				}
+				if #iexpr > 0 then
+					return "${keyword} ${iexpr};\n" % {
+						keyword = sm.keyword,
+						iexpr = table.concat(iexpr),
+					}
+				end
+				return sm.keyword
 			end
 
 			if #oexpr > 0 then
-				return "${oexpr} = ${iexpr}" % {
+				return "${oexpr} = ${iexpr};\n" % {
 					oexpr = table.concat(oexpr),
 					iexpr = table.concat(iexpr),
 				}
 			end
 
 			if #iexpr > 0 then
-				return "${iexpr}" % {
+				return "${iexpr};\n" % {
 					iexpr = table.concat(iexpr),
 				}
 			end
 
-			return "// "..#oexpr.." "..#iexpr
+			assert(false, "empty statement")
 		end,
 	},
 }
@@ -483,7 +486,6 @@ local funcMT = {
 				oexpr = {},
 				iexpr = {},
 				location = "local",
-				term = true,
 			}, stmtMT)
 			fn.stmts[#fn.stmts+1] = stmt
 			return stmt
@@ -495,13 +497,17 @@ local funcMT = {
 				oexpr = {},
 				iexpr = {},
 				location = "local",
-				term = true,
 			}, stmtMT)
 			local tmp = "_index"..#fn.stmts
 			table.insert(fn.stmts, #fn.stmts, stmt)
 			fn:var("int", tmp)
 			stmt:reference(stmt.oexpr,tmp)
 			return stmt, tmp
+		end,
+
+		nop = function(fn)
+			local stmt = fn:stmt()
+			stmt:C("nop()")
 		end,
 
 		variadic = function(fn)
@@ -545,7 +551,7 @@ local funcMT = {
 
 			local stmts = {}
 			for i,s in ipairs(fn.stmts) do
-				stmts[#stmts+1] = "\t"..s:define()..(s.term and ";" or "").."\n"
+				stmts[#stmts+1] = "\t"..s:define()
 			end
 
 			return "${type} ${name}(${args}) {\n${vars}${stmts}}\n" % {
@@ -565,12 +571,16 @@ local libMT = {
 	end,
 	__index = {
 
-		use = function(lib,name)
-			lib.using[name] = true
+		link = function(lib,name,import)
+			lib.links[#lib.links+1] = { name = name, import = import }
 		end,
 
 		C = function(lib,rawC)
 			lib.Cchunks[#lib.Cchunks+1] = rawC
+		end,
+
+		Cinclude = function(lib,inc)
+			lib.Cincludes[#lib.Cincludes+1] = inc
 		end,
 
 		symbol = function(lib, name)
@@ -620,6 +630,7 @@ local libMT = {
 				order = {},
 			}, structMT)
 			lib.structs[name] = st
+			--lib.structs[name.."_concrete"] = st
 			return st
 		end,
 
@@ -655,6 +666,50 @@ local libMT = {
 			for i,sym in pairs(lib.symbolrefs) do
 				sym:resolve()
 			end
+			for i,sym in pairs(lib.symbols) do
+				print(sym)
+				lib:import(sym)
+			end
+			for i,sym in pairs(lib.symbolrefs) do
+				print(sym)
+				lib:import(sym)
+			end
+		end,
+
+		locate = function(lib,name)
+			local hits = {}
+			for i,use in ipairs(lib.links) do
+				if use.import then
+					local ulib = libraries[use.name]
+					if ulib.opaques[name]
+						or ulib.structs[name]
+						or ulib.funcs[name]
+					then
+						hits[#hits+1] = ulib
+					end
+				end
+			end
+			return hits
+		end,
+
+		import = function(lib,sym)
+			if sym.lib == lib then
+				local name = sym.name
+				-- local interfaces create concrete variable symbols
+				if name:match("_concrete$") then
+					name = name:gsub("_concrete$", "")
+				end
+				if lib.opaques[name]
+					or lib.structs[name]
+					or lib.funcs[name]
+				then
+					return
+				end
+				local hits = lib:locate(name)
+				assert(#hits == 1, "symbol "..name.." is unknown or ambiguous")
+				sym.lib = hits[1]
+				print(sym.lib, "auto", name)
+			end
 		end,
 
 		embed = function(lib)
@@ -671,11 +726,15 @@ local libMT = {
 			c:write("#include \"common.h\"\n")
 			c:write("#include \"${name}.h\"\n" % lib)
 
-			for name,b in pairs(lib.using) do
-				c:write("#include \"${name}.h\"\n" % { name = name })
+			for i,use in pairs(lib.links) do
+				c:write("#include \"${name}.h\"\n" % use)
 			end
 
 			c:write("\n")
+
+			for i,obj in pairs(lib.Cincludes) do
+				h:write(obj.."\n")
+			end
 
 			for i,obj in pairs(lib.opaques) do
 				h:write(obj:declare().."\n")
@@ -730,8 +789,10 @@ local library = function(lib)
 		opaques = {},
 		structs = {},
 		funcs = {},
-		using = {},
+		links = {},
+		also = {},
 		Cchunks = {},
+		Cincludes = {},
 	}, libMT)
 	libraries[lib] = l
 	return l
@@ -801,6 +862,7 @@ local function newParser(file)
 			local s = nil
 			for i = 1,#p.queue do
 				if p.queue[i] == "\n" then
+					s = s or ""
 					break
 				end
 				s = (s or "") .. p.queue[i]
@@ -816,6 +878,14 @@ local function newParser(file)
 				end
 			end
 			return c
+		end,
+
+		takeLine = function(p)
+			local s = p:peekLine()
+			for i = 1,#p.queue do
+				p.queue[i] = nil
+			end
+			return s
 		end,
 
 		skip = function(p)
@@ -843,7 +913,7 @@ local function newParser(file)
 				s = (s or "") .. p:take()
 			end
 			p:skip()
-			assert(s, "expected word")
+			assert(s, "expected word "..p:peekLine())
 			return s
 		end,
 
@@ -853,7 +923,7 @@ local function newParser(file)
 		end,
 
 		name = function(p)
-			assert(p:peekName(), "expected name")
+			assert(p:peekName(), "expected name "..p:peekLine())
 			s = ""
 			while p:peek() and p:peek():match("[a-zA-Z0-9_:]") do
 				s = s .. p:take()
@@ -986,10 +1056,16 @@ local function newParser(file)
 			end
 			assert(p:take() == "{", "expected start of block")
 			p:skip()
+			local n = 0
 			while p:peek() and not (p:peek() == "}") do
 				p:stmt(func)
+				n = n+1
 			end
 			assert(p:take() == "}")
+			-- a block is never empty
+			if n == 0 then
+				func:nop()
+			end
 			p:skip()
 		end,
 
@@ -998,6 +1074,21 @@ local function newParser(file)
 			--print("stmt", p:peekLine())
 			local stmt = func:stmt()
 
+			if p:peekLine():match("^local%s") then
+				p:name()
+				stmt.location = "local"
+			end
+
+			if p:peekLine():match("^temp%s") then
+				p:name()
+				stmt.location = "temp"
+			end
+
+			if p:peekLine():match("^pool%s") then
+				p:name()
+				stmt.location = "pool"
+			end
+
 			if p:peekLine():match("^return ") then
 				p:take(6)
 				stmt.keyword = "return"
@@ -1005,10 +1096,34 @@ local function newParser(file)
 				return
 			end
 
+			if p:peekLine():match("^break%s") then
+				p:take(5)
+				stmt.keyword = "break"
+				return
+			end
+
+			if p:peekLine():match("^continue%s") then
+				p:take(8)
+				stmt.keyword = "continue"
+				return
+			end
+
 			if p:peekLine():match("^if ") then
 				p:take(2)
 				stmt.keyword = "if"
-				stmt.term = false
+				p:expr(stmt,stmt.iexpr)
+				local start = #func.stmts
+				p:block(func)
+				while start < #func.stmts do
+					stmt.oexpr[#stmt.oexpr+1] = table.remove(func.stmts,start+1)
+				end
+				return
+			end
+
+
+			if p:peekLine():match("^while ") then
+				p:take(5)
+				stmt.keyword = "while"
 				p:expr(stmt,stmt.iexpr)
 				local start = #func.stmts
 				p:block(func)
@@ -1024,7 +1139,6 @@ local function newParser(file)
 				if p:peekLine():match("^if") then
 					p:take(2)
 					stmt.keyword = "else if"
-					stmt.term = false
 					p:expr(stmt,stmt.iexpr)
 					local start = #func.stmts
 					p:block(func)
@@ -1033,26 +1147,12 @@ local function newParser(file)
 					end
 				else
 					stmt.keyword = "else"
-					stmt.term = false
 					--p:expr(stmt,stmt.iexpr)
 					local start = #func.stmts
 					p:block(func)
 					while start < #func.stmts do
 						stmt.oexpr[#stmt.oexpr+1] = table.remove(func.stmts,start+1)
 					end
-				end
-				return
-			end
-
-			if p:peekLine():match("^while ") then
-				p:take(5)
-				stmt.keyword = "while"
-				stmt.term = false
-				p:expr(stmt,stmt.iexpr)
-				local start = #func.stmts
-				p:block(func)
-				while start < #func.stmts do
-					stmt.oexpr[#stmt.oexpr+1] = table.remove(func.stmts,start+1)
 				end
 				return
 			end
@@ -1183,33 +1283,52 @@ local function newParser(file)
 		end,
 
 		run = function(p)
-			assert(p:take(3) == "lib")
+			assert(p:take(3) == "lib", "expected library name")
 			p.library = library(p:name())
 
 			while p:peek() do
-				if p:peek() and p:peek(3) == "use" then
-					p:take(3)
-					p.library:use(p:name())
-				end
-				if p:peek() and p:peek(6) == "struct" then
-					p:struct()
-				end
-				if p:peek() and p:peek(6) == "opaque" then
-					p:opaque()
-				end
-				if p:peek(2) == "{{" then
-					p:take(2)
-					local rawC = ""
-					while p:peek() and not (p:peek(2) == "}}") do
-						rawC = rawC .. p:take()
+				(function()
+					if p:peek() and p:peek(3) == "inc" then
+						p:take(3)
+						p.library:link(p:name(), false)
+						return
 					end
-					assert(p:take(2) == "}}", p:peekLine())
-					p.library:C(rawC)
-					p:skip()
-				end
-				if p:peek() and p:peekLine():match("^${typePattern}%s+${namePattern}%s*[(]" % p) then
-					p:func()
-				end
+					if p:peek() and p:peek(3) == "use" then
+						p:take(3)
+						p.library:link(p:name(), true)
+						return
+					end
+					if p:peek() and p:peek(8) == "#include" then
+						p.library:Cinclude(p:takeLine())
+						p:skip()
+						return
+					end
+					if p:peek() and p:peek(6) == "struct" then
+						p:struct()
+						return
+					end
+					if p:peek() and p:peek(6) == "opaque" then
+						p:opaque()
+						return
+					end
+					if p:peek(2) == "{{" then
+						p:take(2)
+						local rawC = ""
+						while p:peek() and not (p:peek(2) == "}}") do
+							rawC = rawC .. p:take()
+						end
+						assert(p:take(2) == "}}", p:peekLine())
+						p.library:C(rawC)
+						p:skip()
+						return
+					end
+					if p:peek() and p:peekLine():match("^${typePattern}%s+${namePattern}%s*[(]" % p) then
+						p:func()
+						return
+					end
+
+					assert(false, "what? "..p:peekLine())
+				end)()
 			end
 			return p
 		end,
@@ -1220,10 +1339,10 @@ local function parse(file)
 	newParser(file):run()
 end
 
-parse("main.ct")
-parse("rt.ct")
-parse("io.ct")
-parse("str.ct")
+for i,a in ipairs(arg) do
+	print(a)
+	parse(a)
+end
 
 local common = io.open("build/common.h", "w")
 common:write([[
@@ -1243,19 +1362,11 @@ common:write([[
 
 void* allot(size_t);
 int main_main();
+#define nop()
 
 typedef char* string;
 ]])
 common:close()
-
-local build = io.open("build/build.sh", "w")
-build:write("#!/bin/sh\n")
-for name,lib in pairs(libraries) do
-	build:write("cc -O1 -g -Wall -Werror -std=c11 -c ${name}.c\n" % lib)
-end
-build:write("cc -O1 -g -Wall -Werror -std=c11 -flto -o main *.o\n" % lib)
-build:close()
-os.execute("chmod 755 build/build.sh")
 
 for name,lib in pairs(libraries) do
 	lib:resolve()

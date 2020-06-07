@@ -1,30 +1,28 @@
 lib main
 use io
-
-struct point {
-	double x
-	double y
-}
+use gui
+use vec2
 
 struct entity {
-	embed point
-	point stuff[10]
-}
-
-void translate(point p, double x, double y) {
-	p.x = p.x+x
+	embed vec2:xy
 }
 
 int main() {
-	entity en = {}
-	translate(en,1,1)
-	io:printf("%f", en.x)
-	if (2 == 3) {
-		io:printf("hi!")
-	} else if 3 == 4 {
-		io:printf("yo!")
-	} else {
-		io:printf("wtf!")
+	gui:start()
+
+	window win = gui:createWindow("hi", 1000, 1000)
+
+	pool entity en = { x = 1, y = 1 }
+
+	while gui:tick() {
+		printf("tick! %f", en.x)
+		printf("tock! %f", en.y)
+		vec2:add(en, 1, 1)
 	}
+
+	gui:destroyWindow(win)
+
+	gui:stop()
+
 	return 0
 }
