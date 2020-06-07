@@ -2,8 +2,12 @@ lib io
 
 opaque FILE* file
 
-void print(string s)	{{
-	fprintf(stdout, "%s\n", s);
+void printf(string p, ...) {{
+	va_list args;
+	va_start(args, p);
+	vfprintf(stdout, p, args);
+	va_end(args);
+	fputc('\n', stdout);
 }}
 
 file open(string path, mode) {{

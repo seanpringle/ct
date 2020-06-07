@@ -1,37 +1,30 @@
 lib main
-use rt
 use io
-use str
-use gui
 
-struct inner {
-	int n[3]
+struct point {
+	double x
+	double y
 }
 
-struct test {
-	inner i
+struct entity {
+	embed point
+	point stuff[10]
+}
+
+void translate(point p, double x, double y) {
+	p.x = p.x+x
 }
 
 int main() {
-	test t = { }
-	t.i = {}
-
-	t.i.n[0] = 3
-
-	gui:window windows[3]
-
-	windows[0] = gui:createWindow("test", 1000, 1000)
-	//windows[1] = gui:createWindow("test", 1000, 1000)
-	//windows[2] = gui:createWindow("test", 1000, 1000)
-
-	while gui:tick() {
-		rt:forget()
+	entity en = {}
+	translate(en,1,1)
+	io:printf("%f", en.x)
+	if (2 == 3) {
+		io:printf("hi!")
+	} else if 3 == 4 {
+		io:printf("yo!")
+	} else {
+		io:printf("wtf!")
 	}
-
-	io:print(str:format("%d", t.i.n[0]))
-
-	gui:destroyWindow(windows[0])
-	//gui:destroyWindow(windows[1])
-	//gui:destroyWindow(windows[2])
 	return 0
 }
