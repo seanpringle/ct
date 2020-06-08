@@ -2,7 +2,7 @@
 
 Ct is an experimental language that:
 
-* Transpiles to C11
+* [Transpiles](https://en.wikipedia.org/wiki/Source-to-source_compiler) to C11
 * Is C-like and allows C code blocks inline
 * Uses [structural typing](https://en.wikipedia.org/wiki/Structural_type_system) and interfaces
 * Has three-tier memory management: stack, [region](https://en.wikipedia.org/wiki/Region-based_memory_management) and heap
@@ -84,11 +84,11 @@ add((vec2){ &v3.x, &v3.y }, 1, 1);
 
 Any other concrete type that contains `x` and `y` fields with type `double` can also be passed to `add()`.
 
-That's about it. In Ct "interfaces" are really just syntactic sugar for passing around sets of pointers.
+That's about it. In Ct *interfaces* are really just syntactic sugar for passing around sets of pointers.
 
 # Embedding (composition)
 
-Embedding a struct within a struct works like Go, and is handy to ensure interfaces stay in sync. `vec3` could have been defined like:
+Embedding a struct within a struct works like Go and is handy to ensure interfaces stay in sync. `vec3` could have been defined like:
 
 ```C
 struct vec3 {
