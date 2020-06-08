@@ -14,4 +14,4 @@ build/%.o: build/%.c
 parse:
 	mkdir -p build
 	rm -rf build/*
-	luajit parse2.lua *.ct
+	luajit ct.lua *.ct
