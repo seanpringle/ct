@@ -2,27 +2,41 @@ lib main
 use io
 use gui
 use vec2
+use box2
 
 struct entity {
-	embed vec2:xy
+	uint64 id
 }
 
+struct entity_physical {
+	embed entity
+	embed box2
+	float orientation
+	short direction
+}
+
+struct sim {
+	int tick
+}
+
+sim s = { tick = 1 }
+
 int main() {
-	gui:start()
+	gui:open("test", 1000, 1000)
 
-	window win = gui:createWindow("hi", 1000, 1000)
+	heap entity_physical en = { x = 1, y = 1, w = 2, h = 2 }
 
-	pool entity en = { x = 1, y = 1 }
-
-	while gui:tick() {
-		printf("tick! %f", en.x)
-		printf("tock! %f", en.y)
-		vec2:add(en, 1, 1)
+	do {
+		region {
+			if !gui:tick() break
+			vec2 p = box2:centroid(en)
+			notef("tick %f,%f", p.x, p.y)
+		}
 	}
 
-	gui:destroyWindow(win)
+	gui:close()
 
-	gui:stop()
+	free(en)
 
 	return 0
 }

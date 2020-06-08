@@ -7,7 +7,23 @@ void printf(string p, ...) {{
 	va_start(args, p);
 	vfprintf(stdout, p, args);
 	va_end(args);
-	fputc('\n', stdout);
+}}
+
+void notef(string p, ...) {{
+	va_list args;
+	va_start(args, p);
+	vfprintf(stderr, p, args);
+	va_end(args);
+	fputc('\n', stderr);
+}}
+
+void fatalf(string p, ...) {{
+	va_list args;
+	va_start(args, p);
+	vfprintf(stderr, p, args);
+	va_end(args);
+	fputc('\n', stderr);
+	exit(1)
 }}
 
 file open(string path, mode) {{

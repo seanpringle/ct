@@ -16,3 +16,15 @@ string format(string pattern, ...)	{{
 bool equal(string a, b) {{
 	return strcmp(a,b) == 0;
 }}
+
+bool prefixed(string a, b) {{
+	int blen = strlen(b);
+	return !strncmp(a, b, blen);
+}}
+
+bool suffixed(string a, b) {{
+	int alen = strlen(a);
+	int blen = strlen(b);
+	if (alen < blen) return false;
+	return !strncmp(a+alen-blen, b, blen);
+}}

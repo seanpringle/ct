@@ -1,11 +1,27 @@
 lib vec2
 
-struct xy {
+struct vec2 {
 	double x
 	double y
 }
 
-void add(xy v, double x, y) {
+void add(vec2 v, double x, y) {
 	v.x = v.x + x
 	v.y = v.y + y
 }
+
+void sub(vec2 v, double x, y) {
+	v.x = v.x - x
+	v.y = v.y - y
+}
+
+void mul(vec2 v, double x, y) {
+	v.x = v.x * x
+	v.y = v.y * y
+}
+
+void div(vec2 v, double x, y) {
+	v.x = v.x / x
+	v.y = v.y / y
+}
+

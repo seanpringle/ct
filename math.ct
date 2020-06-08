@@ -1,0 +1,17 @@
+lib math
+
+#include <math.h>
+
+double min(double a, b) {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+double max(double a, b) {
+	if a > b {
+		return a
+	}
+	return b
+}

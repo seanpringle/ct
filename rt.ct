@@ -1,67 +1,106 @@
 lib rt
 
+opaque bool bool
+opaque short short
+opaque int int
+opaque long long
+opaque float float
+opaque float float32
+opaque double double
+opaque double float64
+opaque char* string
+opaque void void
+
+opaque char char
+opaque int8_t int8
+opaque uint8_t uint8
+opaque int16_t int16
+opaque uint16_t uint16
+opaque int32_t int32
+opaque uint32_t uint32
+opaque int64_t int64
+opaque uint64_t uint64
+
 {{
 /* runtime start */
-
-int main() {
-	return main_main();
-}
 
 _Thread_local struct {
 	int count;
 	void* *array;
-} rt_allotments;
+} allotments;
 
 _Thread_local struct {
 	int count;
 	int *array;
-} rt_marks;
+} marks;
+
+#define LARGE 1024
+#define PAGE 1024*1024
+
+_Thread_local struct {
+	uint8_t *base;
+	size_t used;
+} page;
+
+static void track(void *ptr) {
+	allotments.array = realloc(allotments.array, ((allotments.count+1)*sizeof(void*)));
+	allotments.array[allotments.count++] = ptr;
+}
 
 void* allot(size_t bytes) {
-	void *buf = calloc(bytes, sizeof(uint8_t));
-	rt_allotments.array = realloc(rt_allotments.array, ((rt_allotments.count+1)*sizeof(void*)));
-	rt_allotments.array[rt_allotments.count++] = buf;
+	bytes = (bytes%8 != 0 ? bytes + (8-(bytes%8)): bytes);
+	assert(bytes%8 == 0);
+
+	if (bytes > LARGE) {
+		void *buf = calloc(bytes, sizeof(uint8_t));
+		track(buf);
+		return buf;
+	}
+
+	if (!page.base || page.used > PAGE-bytes) {
+		page.base = calloc(PAGE, sizeof(uint8_t));
+		page.used = 0;
+		track(page.base);
+	}
+
+	void *buf = page.base + page.used;
+	page.used += bytes;
+	assert(page.used <= PAGE);
 	return buf;
 }
 
-void mark() {
-	rt_marks.array = realloc(rt_marks.array, ((rt_marks.count+1)*sizeof(int)));
-	rt_marks.array[rt_marks.count++] = rt_allotments.count;
+void rt_region_start() {
+	marks.array = realloc(marks.array, ((marks.count+1)*sizeof(int)));
+	marks.array[marks.count++] = allotments.count;
 }
 
-void forget() {
-	if (rt_marks.count > 0) {
-		int until = rt_marks.array[rt_marks.count-1];
-		while (rt_allotments.count > until) {
-			free(rt_allotments.array[--rt_allotments.count]);
+void rt_region_end() {
+	if (marks.count > 0) {
+		int until = marks.array[marks.count-1];
+		while (allotments.count > until) {
+			free(allotments.array[--allotments.count]);
 		}
 	} else {
-		while (rt_allotments.count > 0) {
-			free(rt_allotments.array[--rt_allotments.count]);
+		while (allotments.count > 0) {
+			free(allotments.array[--allotments.count]);
 		}
-		free(rt_allotments.array);
-		memset(&rt_allotments, 0, sizeof(rt_allotments));
+		free(allotments.array);
+		memset(&allotments, 0, sizeof(allotments));
 	}
-}
+	memset(&page, 0, sizeof(page));
 
-void erase() {
-	forget();
-	if (rt_marks.count > 0) {
-		rt_marks.count--;
+	if (marks.count > 0) {
+		marks.count--;
 	}
 }
 
 /* runtime end */
 }}
 
-void mark() {{
-	mark();
-}}
+struct any {}
 
-void erase() {{
-	erase();
-}}
-
-void forget() {{
-	forget();
+void free(any thing) {{
+	if (thing._concrete && ((struct _rt_any_concrete*)thing._concrete)->_flag & isPool) {
+		free(thing._concrete);
+	}
 }}

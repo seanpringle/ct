@@ -1,13 +1,31 @@
 lib vec3
 
-struct xyz {
+struct vec3 {
 	double x
 	double y
 	double z
 }
 
-void add(xyz v, double x, y, z) {
+void add(vec3 v, double x, y, z) {
 	v.x = v.x + x
 	v.y = v.y + y
 	v.z = v.z + z
+}
+
+void sub(vec3 v, double x, y, z) {
+	v.x = v.x - x
+	v.y = v.y - y
+	v.z = v.z - z
+}
+
+void mul(vec3 v, double x, y, z) {
+	v.x = v.x * x
+	v.y = v.y * y
+	v.z = v.z * z
+}
+
+void div(vec3 v, double x, y, z) {
+	v.x = v.x / x
+	v.y = v.y / y
+	v.z = v.z / z
 }

@@ -1,0 +1,39 @@
+lib box2
+use vec2
+use math
+
+struct box2 {
+	embed vec2
+	float w
+	float h
+}
+
+bool intersects(box2 a, b) {
+	double bl = b.x, br = b.x+b.w, bt = b.y, bb = b.y+b.h
+	double al = a.x, ar = a.x+a.w, at = a.y, ab = a.y+a.h
+  return max(al, bl) < min(ar, br) and max(at, bt) < min(ab, bb)
+}
+
+vec2 centroid(box2 b) {
+	temp vec2 p = { x = b.x+b.w/2, y = b.y+b.h/2 }
+	return p
+}
+
+void grow(box2 b, float w, h) {
+	vec2:sub(b, w/2, h/2)
+	b.w = b.w + w
+	b.h = b.h + h
+}
+
+void shrink(box2 b, float w, h) {
+	grow(b, -w, -h)
+}
+
+void scale(box2 b, float w, h) {
+	double xd = b.w - (b.w*w)
+	double yd = b.h - (b.h*h)
+	b.x = b.x - (xd/2)
+	b.y = b.y - (yd/2)
+	b.w = b.w + xd
+	b.h = b.h + yd
+}

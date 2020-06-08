@@ -1,22 +1,19 @@
 lib gui
 
+{{
+
 #include <SDL2/SDL.h>
+SDL_Window *window;
 
-opaque SDL_Window* window
+}}
 
-void start() {{
+void open(string title, int width, int height) {{
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		fprintf(stderr, "SDL error: %s\n", SDL_GetError());
 	}
-}}
 
-void stop() {{
-	SDL_Quit();
-}}
-
-window createWindow(string title, int width, int height) {{
-	return SDL_CreateWindow(
-		"te",
+	window = SDL_CreateWindow(
+		title,
 		SDL_WINDOWPOS_UNDEFINED,
 		SDL_WINDOWPOS_UNDEFINED,
 		width,
@@ -25,8 +22,9 @@ window createWindow(string title, int width, int height) {{
 	);
 }}
 
-void destroyWindow(window win) {{
-	SDL_DestroyWindow(win);
+void close() {{
+	SDL_DestroyWindow(window);
+	SDL_Quit();
 }}
 
 bool tick() {{
