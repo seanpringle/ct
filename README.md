@@ -14,26 +14,26 @@ Ct is influenced by Go and [Cyclone](https://en.wikipedia.org/wiki/Cyclone_%28pr
 
 ```C
 struct vec2 {
-	double x
-	double y
+  double x
+  double y
 }
 
 struct vec3 {
-	double x
-	double y
-	double z
+  double x
+  double y
+  double z
 }
 
 void add(vec2 v, double x, y) {
-	v.x = v.x + x
-	v.y = v.y + y
+  v.x = v.x + x
+  v.y = v.y + y
 }
 
 void dostuff() {
-	vec3 v3 = { x = 1, y = 2, z = 3 }
+  vec3 v3 = { x = 1, y = 2, z = 3 }
 
-	// works because vec3 is implicitly also a vec2
-	add(v3, 1, 1)
+  // works because vec3 is implicitly also a vec2
+  add(v3, 1, 1)
 }
 ```
 
@@ -48,8 +48,8 @@ Consider the `vec2` above:
 
 ```C
 struct vec2 {
-	double x
-	double y
+  double x
+  double y
 }
 ```
 
@@ -57,13 +57,13 @@ struct vec2 {
 
 ```C
 struct vec2_concrete {
-	double x;
-	double y;
+  double x;
+  double y;
 };
 
 typedef struct {
-	double *x;
-	double *y;
+  double *x;
+  double *y;
 } vec2;
 ```
 
@@ -71,8 +71,8 @@ typedef struct {
 
 ```C
 void add(vec2 v, double x, double y) {
-	*v.x = *v.x + x;
-	*v.y = *v.y + y;
+  *v.x = *v.x + x;
+  *v.y = *v.y + y;
 }
 ```
 
@@ -92,8 +92,8 @@ Embedding a struct within a struct works like Go and is handy to ensure interfac
 
 ```C
 struct vec3 {
-	embed vec2
-	double z
+  embed vec2
+  double z
 }
 ```
 
@@ -120,18 +120,18 @@ Regions are something like a simple form of manual garbage collection. Variables
 ```C
 vec2 dostuff() {
 
-	// local variable on the stack
-	vec2 alpha = { x = 1, y = 2 }
+  // local variable on the stack
+  vec2 alpha = { x = 1, y = 2 }
 
-	// temporary variable in the current region
-	temp vec2 beta = { x = 3, y = 4 }
+  // temporary variable in the current region
+  temp vec2 beta = { x = 3, y = 4 }
 
-	// heap allocation
-	heap vec2 gamma = { x = 5, y = 6 }
+  // heap allocation
+  heap vec2 gamma = { x = 5, y = 6 }
 
-	free(vec2)
+  free(vec2)
 
-	return beta
+  return beta
 }
 ```
 
@@ -140,17 +140,17 @@ vec2 dostuff() {
 ```C
 void callsStuff() {
 
-	...
+  ...
 
-	region {
-		vec2 beta = doStuff()
-		moreStuff(beta)
-		yetMoreStuff(beta)
-	}
+  region {
+    vec2 beta = doStuff()
+    moreStuff(beta)
+    yetMoreStuff(beta)
+  }
 
-	// beta has been freed
+  // beta has been freed
 
-	...
+  ...
 }
 ```
 
@@ -170,9 +170,9 @@ Double-braced blocks are passed to the C compiler verbatim:
 
 ```C
 void callSomeRawC(vec2 v2) {{
-	fprintf(stderr, "%f,%f\n", *v2.x, *v2.y);
-	void *footgun = malloc(...);
-	...
+  fprintf(stderr, "%f,%f\n", *v2.x, *v2.y);
+  void *footgun = malloc(...);
+  ...
 }}
 ```
 
